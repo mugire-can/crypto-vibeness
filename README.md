@@ -1,204 +1,210 @@
-# Crypto Vibeness - A Secure Chat System Project
+# Crypto Vibeness — A Progressive Cryptography Chat Project
 
-## Project Overview
+**Crypto Vibeness** is an educational project that builds a secure multi-user chat system step by step, introducing cryptographic concepts at each stage.
 
-**Crypto Vibeness** is an educational project designed to teach cryptography concepts through progressive implementation of a secure chat system. The project builds a multi-user chat application using Python, gradually introducing three core cryptographic branches:
-
-1. **Hash Functions** (MD5, SHA256, etc.) - Data indexing, integrity verification
-2. **Symmetric Cryptography** - Secure communication channels (HTTPS, VPNs, Signal-like protocols)
-3. **Asymmetric Cryptography** - Public/private key systems, digital signatures, end-to-end encryption
+---
 
 ## Project Structure
 
 ```
 crypto-vibeness/
-├── README.md                    # Project documentation (this file)
-├── .gitignore                   # Git ignore rules
-├── jour1_yolo/                  # Day 1: Basic chat (no auth, no encryption)
-│   ├── server.py               # IRC-like chat server
-│   └── client.py               # Chat client
-├── jour2_crypto/                # Day 2: Symmetric cryptography
-│   ├── jour2_partie1/          # Basic symmetric encryption
-│   ├── jour2_partie2/          # Enhanced with key management
-│   └── jour2_partie3/          # Symmetric key encapsulation
-├── jour3_asymmetric/            # Day 3: Asymmetric cryptography
-│   ├── jour3_partie1/          # Key generation and exchange
-│   └── jour3_partie2/          # Hybrid encryption (asymmetric + symmetric)
-├── jour3_e2ee/                  # Day 3: End-to-End Encryption (E2EE)
-│   ├── jour3_partie3/          # Public key distribution
-│   ├── jour3_partie4/          # Session key establishment
-│   ├── jour3_partie5/          # Message encryption
-│   └── jour3_partie6/          # Message signatures
-└── docs/                        # Additional documentation and resources
+├── jour1_yolo/              # Day 1 – Basic IRC-like chat (no encryption)
+│   ├── server.py
+│   ├── client.py
+│   ├── config.py
+│   ├── test_server.py
+│   ├── test_comprehensive.py
+│   └── README_JOUR1.md
+│
+├── jour2_crypto/            # Day 2 – Symmetric encryption (AES-256-CBC + HMAC, AES-256-GCM)
+│   ├── server.py
+│   ├── client.py
+│   ├── crypto_utils.py      # AES-256-CBC+HMAC & AES-256-GCM, PBKDF2
+│   └── config.py
+│
+├── jour3_asymmetric/        # Day 3 – Hybrid E2EE (RSA-OAEP + AES-256-GCM + RSA-PSS)
+│   ├── server.py
+│   ├── client.py
+│   ├── crypto_rsa.py        # RSA-2048 key generation, OAEP encryption, PSS signing
+│   ├── crypto_utils.py      # AES-256-GCM utilities (shared with Jour 2)
+│   └── config.py
+│
+├── jour4_ecdh/              # Day 4 – Modern EC: ECDH + ECDSA + AES-256-GCM (PFS)
+│   ├── server.py
+│   ├── client.py
+│   ├── crypto_ecdh.py       # X25519 ECDH, ECDSA/P-256, AES-256-GCM, HKDF
+│   └── config.py
+│
+├── tests/
+│   └── test_crypto.py       # Unit tests for all crypto modules (61 tests)
+│
+├── requirements.txt
+├── pyproject.toml
+└── README.md
 ```
 
-## Development Stages
+---
 
-### **Jour 1 - 1ère partie: YOLO** (No Security)
-Build a basic IRC-like multi-user chat system without authentication or encryption.
+## Learning Path
 
-**Key Features:**
-- Server listens on a configurable port (default defined in variables)
-- Multiple clients can connect simultaneously
-- Messages broadcast to all connected clients
-- Simple command interface (e.g., `/quit` to disconnect)
-- Clear user join/leave notifications
+### Jour 1 — YOLO (No Security)
 
-**Validation Criteria:**
-- Server starts and listens correctly
-- Multiple clients connect and communicate
-- Messages broadcast to all users
-- Clean disconnection handling
+A plain TCP multi-user chat server and client.  No authentication, no encryption.
 
-### **Jour 2 - Cryptographie Symétrique** (Symmetric Encryption)
-Implement symmetric encryption for secure communication.
-
-### **Jour 3 - Cryptographie Asymétrique** (Asymmetric Encryption)
-Implement asymmetric cryptography for key exchange.
-
-### **Jour 3 - Chiffrement de Bout en Bout** (End-to-End Encryption)
-Implement E2EE with digital signatures for secure 1-1 communication.
-
-## Technical Requirements
-
-### Prerequisites
-- Python 3.8 or higher
-- `cryptography` library (for crypto primitives)
-- Standard library modules: `socket`, `threading`, `json`, `hashlib`, `hmac`
-
-### Installation & Setup
-
-📖 **For detailed setup instructions**, see [DEVELOPMENT.md](./DEVELOPMENT.md)
-
-Quick start:
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Running the Project
-
-**See [START_HERE.md](./START_HERE.md) for quick-start instructions!**
-
-**Day 1 (YOLO - Basic Chat):**
+**Concepts:** sockets, threading, message broadcasting
 
 ```bash
 cd jour1_yolo
-
-# Terminal 1: Start the server
+# Terminal 1
 python3 server.py 5000
-
-# Terminal 2+: Connect clients  
+# Terminal 2+
 python3 client.py localhost 5000
 ```
 
-Type a username and start chatting. Type `/quit` to disconnect.
+---
 
-## Important Notes on Cryptography
+### Jour 2 — Symmetric Cryptography
 
-⚠️ **WARNING**: This project is educational. The implementations are intentionally simplified and **NOT suitable for production use**. The systems may be cryptographically weak. Always remember: **"Don't roll your own crypto"** except for learning purposes.
+All messages are encrypted with **AES-256** before being sent.  The server still relays
+ciphertext; it cannot read messages because it only knows the shared password-derived key.
 
-In real-world applications:
-- Use vetted cryptographic libraries and frameworks
-- Never implement custom cryptographic primitives
-- Follow ANSSI and NIST guidelines
-- Have security professionals review your code
+**Cryptographic primitives:**
+| Primitive | Purpose |
+|-----------|---------|
+| PBKDF2-SHA256 (480 000 iterations) | Password → AES key derivation |
+| AES-256-CBC + HMAC-SHA256 | Encrypt-then-MAC (legacy compatible) |
+| AES-256-GCM | Authenticated encryption (recommended) |
 
-## Learning Objectives
-
-By completing this project, you will:
-- ✅ Understand hash functions and their applications
-- ✅ Implement symmetric key cryptography
-- ✅ Implement asymmetric key cryptography
-- ✅ Design hybrid encryption systems (symmetric + asymmetric)
-- ✅ Implement end-to-end encryption (E2EE)
-- ✅ Understand digital signatures and authentication
-- ✅ Apply prompt engineering to AI coding agents
-- ✅ Validate cryptographic implementations
-
-## Validation Strategy
-
-Each phase must be validated before proceeding to the next:
-
-1. **Code Review**: Ensure code follows best practices
-2. **Functional Testing**: Verify all features work as expected
-3. **Security Validation**: Check encryption/decryption, signature verification
-4. **Server Logs Review**: For E2EE phases, verify encrypted data in logs
-5. **Manual Testing**: Test edge cases and attack scenarios
-
-## AI Agent Workflow
-
-This project is designed to be completed with an AI coding agent (Copilot CLI, Claude, etc.) using:
-- **Prompt Engineering**: Carefully crafted prompts with full context
-- **Context Engineering**: Configuration files and documentation for context
-- **Validation**: Manual verification of each deliverable before proceeding
-- **Iterative Development**: Prompt → Code → Test → Validate → Next Phase
-
-## Key Concepts to Understand
-
-### Hashing
-- One-way function producing fixed-size output
-- Use: password storage, integrity checking, blockchain
-
-### Symmetric Encryption
-- Same key for encryption and decryption
-- Fast, efficient for bulk data
-- Challenge: key distribution
-
-### Asymmetric Encryption
-- Public/private key pair
-- Public key for encryption, private key for decryption
-- Challenge: computational cost
-
-### Hybrid Encryption
-- Use asymmetric crypto to exchange symmetric key
-- Use symmetric crypto for actual communication
-- Best of both worlds: security + performance
-
-### End-to-End Encryption (E2EE)
-- Only sender and recipient can read messages
-- Server cannot access message content
-- Requires authentication and key management
-
-### Digital Signatures
-- Prove message authenticity and non-repudiation
-- Sign with private key, verify with public key
-- Detect tampering
-
-## Resources
-
-- **Crypto 101**: Essential resource for cryptographic primitives
-- **ANSSI Password Rules**: https://www.anssi.gouv.fr/
-- **Latacora Best Practices**: Good reflexes in cryptography
-- **xkcd on Password Entropy**: https://xkcd.com/936/
-- **Password Strength Meter**: https://howsecureismypassword.net/
-- **Hashcat**: Password cracking tool for understanding attack vectors
-
-## Commits and Progress
-
-Each completed phase should be committed with clear messages:
 ```bash
-git add .
-git commit -m "Jour 1 - YOLO: Basic IRC-like chat system
-
-- Multi-user chat server and client
-- User join/leave notifications
-- Message broadcasting
-- Command interface (/quit, etc.)
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+cd jour2_crypto
+# Terminal 1
+python3 server.py 5000 mypassword
+# Terminal 2+
+python3 client.py localhost 5000
+# Enter the same password when prompted
 ```
 
-## Code Standards
+---
 
-- **Language**: English (all code)
-- **Communication**: French allowed in prompts, documents
-- **Style**: PEP 8 for Python
-- **Comments**: Only for non-obvious logic
-- **Logging**: Useful for validation, especially in later phases
+### Jour 3 — Hybrid E2EE with RSA
 
+True **end-to-end encryption**: the server is a blind relay that cannot read any message.
 
+**Protocol (per message):**
+1. Sender generates a fresh 32-byte AES session key.
+2. Session key is encrypted with recipient's **RSA-2048 public key** (OAEP/SHA-256).
+3. Message is encrypted with **AES-256-GCM**.
+4. Message is signed with sender's **RSA-PSS** private key.
+5. Server forwards the opaque bundle; recipient decrypts using their RSA private key.
+
+**Cryptographic primitives:**
+| Primitive | Purpose |
+|-----------|---------|
+| RSA-2048 / OAEP-SHA256 | Session key encapsulation |
+| AES-256-GCM | Message encryption (AEAD) |
+| RSA-PSS / SHA-256 | Digital signatures |
+
+```bash
+cd jour3_asymmetric
+# Terminal 1
+python3 server.py 5001
+# Terminal 2+
+python3 client.py localhost 5001
+# Send: @username <message>
+# Fetch a peer's public key first: /key <username>
+```
+
+---
+
+### Jour 4 — ECDH + ECDSA + AES-256-GCM (Perfect Forward Secrecy)
+
+Modern cryptography using **elliptic curves** — smaller keys, faster operations, and
+**Perfect Forward Secrecy** (PFS) via ephemeral X25519 key pairs.
+
+**Why better than Jour 3?**
+- X25519 keys are 256 bits vs 2048 bits for equivalent RSA security
+- Each message uses a fresh ephemeral keypair → compromising one session key never
+  reveals previous sessions (PFS)
+- ECDSA/P-256 signatures are faster than RSA-PSS
+- HKDF-SHA256 provides clean key derivation from the shared secret
+
+**Protocol (per message):**
+1. Sender generates a **fresh ephemeral X25519 keypair** (PFS).
+2. ECDH exchange: `session_key = HKDF(X25519(sender_eph_priv, recipient_pub))`.
+3. Message encrypted with **AES-256-GCM**.
+4. Message signed with sender's long-term **ECDSA/P-256** private key.
+5. Sender's ephemeral public key is transmitted so the recipient can reconstruct the
+   session key.
+
+**Cryptographic primitives:**
+| Primitive | Purpose |
+|-----------|---------|
+| X25519 ECDH (ephemeral) | Session key agreement with PFS |
+| HKDF-SHA256 | Shared-secret → AES key derivation |
+| AES-256-GCM | Message encryption (AEAD) |
+| ECDSA / P-256 / SHA-256 | Digital signatures |
+
+```bash
+cd jour4_ecdh
+# Terminal 1
+python3 server.py 5002
+# Terminal 2+
+python3 client.py localhost 5002
+# Fetch peer keys: /keys <username>
+# Send: @username <message>
+```
+
+---
+
+## Tests
+
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+61 tests covering:
+- PBKDF2 key derivation
+- AES-256-CBC with HMAC-SHA256
+- AES-256-GCM (authenticated encryption)
+- Transmission encoding/decoding helpers
+- RSA-2048 encrypt/decrypt/sign/verify/save/load
+- X25519 ECDH key exchange
+- ECDSA/P-256 sign/verify
+- Full end-to-end integration flow
+
+---
+
+## Installation
+
+```bash
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Requires Python 3.8+ and the `cryptography` library (≥ 42.0).
+
+---
+
+## Cryptography Reference
+
+| Concept | What it solves | Where used |
+|---------|---------------|------------|
+| Symmetric encryption | Efficient bulk data encryption | Jour 2, 3, 4 |
+| AEAD (AES-GCM) | Encryption + integrity in one primitive | Jour 2–4 |
+| Key derivation (PBKDF2) | Password → strong key | Jour 2–3 |
+| Asymmetric encryption (RSA) | Key encapsulation; no shared secret needed | Jour 3 |
+| Digital signatures | Authenticity + non-repudiation | Jour 3–4 |
+| Hybrid encryption | Combine asymmetric (key exchange) + symmetric (speed) | Jour 3–4 |
+| ECDH | Efficient key agreement | Jour 4 |
+| Perfect Forward Secrecy | Old sessions safe even if long-term key leaks | Jour 4 |
+| HKDF | Derive strong keys from shared secrets | Jour 4 |
+
+---
+
+## ⚠️  Educational Project
+
+This code is for learning purposes only.  Do **not** use in production systems without
+a thorough security review.  Always follow current NIST / ANSSI guidelines and prefer
+well-audited libraries such as TLS 1.3 for real-world communication security.
