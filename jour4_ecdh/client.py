@@ -174,26 +174,69 @@ class ECDHClient:
     def _receive_loop(self):
         """Receive and dispatch server messages."""
         try:
+            buffer = ""  # Buffer for incomplete JSON messages
             while not self.shutdown_event.is_set():
                 data = self.socket.recv(8192)
                 if not data:
                     break
 
-                try:
-                    msg = json.loads(data.decode('utf-8'))
-                    t = msg.get('type')
+                # Add new data to buffer
+                buffer += data.decode('utf-8')
 
-                    if t == 'MSG':
-                        self._handle_message(msg)
-                    elif t == 'USER_LIST':
-                        self._handle_user_list(msg)
-                    elif t == 'PEER_KEYS':
-                        self._handle_peer_keys(msg)
-                    elif t == 'ERROR':
-                        logger.warning(f"Server: {msg.get('message')}")
+                # Try to parse one or more complete JSON objects from buffer
+                while buffer:
+                    # Find the next complete JSON object
+                    buffer = buffer.lstrip()  # Remove leading whitespace
+                    if not buffer:
+                        break
 
-                except Exception as e:
-                    logger.error(f"Receive error: {e}")
+                    # Try to find complete JSON object
+                    brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    end_pos = 0
+
+                    for i, char in enumerate(buffer):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                        elif not in_string:
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end_pos = i + 1
+                                    break
+
+                    if end_pos == 0:
+                        # Incomplete JSON, need more data
+                        break
+
+                    # Extract and parse the complete JSON object
+                    json_str = buffer[:end_pos]
+                    buffer = buffer[end_pos:]
+
+                    try:
+                        msg = json.loads(json_str)
+                        t = msg.get('type')
+
+                        if t == 'MSG':
+                            self._handle_message(msg)
+                        elif t == 'USER_LIST':
+                            self._handle_user_list(msg)
+                        elif t == 'PEER_KEYS':
+                            self._handle_peer_keys(msg)
+                        elif t == 'ERROR':
+                            logger.warning(f"Server: {msg.get('message')}")
+
+                    except Exception as e:
+                        logger.error(f"Receive error: {e}")
 
         except Exception as e:
             if not self.shutdown_event.is_set():

@@ -75,12 +75,16 @@ class E2EEClient:
         """Connect to server and complete the E2EE handshake."""
         logger.info(f"Connecting to {self.host}:{self.port}...")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(5.0)  # Timeout only for connection phase
 
         try:
             self.socket.connect((self.host, self.port))
-        except ConnectionRefusedError:
-            logger.error(f"Could not connect to {self.host}:{self.port}")
+        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+            logger.error(f"Could not connect to {self.host}:{self.port}: {e}")
             sys.exit(1)
+
+        # Remove timeout after successful connection — we want blocking recv() for the receive loop
+        self.socket.settimeout(None)
 
         self.username = input("Username: ").strip()
         if not self.username:
@@ -141,26 +145,69 @@ class E2EEClient:
     def _receive_loop(self):
         """Receive and dispatch messages from the server."""
         try:
+            buffer = ""  # Buffer for incomplete JSON messages
             while not self.shutdown_event.is_set():
                 data = self.socket.recv(4096)
                 if not data:
                     break
 
-                try:
-                    msg = json.loads(data.decode('utf-8'))
-                    t = msg.get('type')
+                # Add new data to buffer
+                buffer += data.decode('utf-8')
 
-                    if t == 'MSG':
-                        self._handle_incoming_message(msg)
-                    elif t == 'USER_LIST':
-                        self._handle_user_list(msg)
-                    elif t == 'PUBLIC_KEY':
-                        self._handle_public_key_response(msg)
-                    elif t == 'ERROR':
-                        logger.warning(f"Server error: {msg.get('message')}")
+                # Try to parse one or more complete JSON objects from buffer
+                while buffer:
+                    # Find the next complete JSON object
+                    buffer = buffer.lstrip()  # Remove leading whitespace
+                    if not buffer:
+                        break
 
-                except Exception as e:
-                    logger.error(f"Receive error: {e}")
+                    # Try to find complete JSON object
+                    brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    end_pos = 0
+
+                    for i, char in enumerate(buffer):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                        elif not in_string:
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end_pos = i + 1
+                                    break
+
+                    if end_pos == 0:
+                        # Incomplete JSON, need more data
+                        break
+
+                    # Extract and parse the complete JSON object
+                    json_str = buffer[:end_pos]
+                    buffer = buffer[end_pos:]
+
+                    try:
+                        msg = json.loads(json_str)
+                        t = msg.get('type')
+
+                        if t == 'MSG':
+                            self._handle_incoming_message(msg)
+                        elif t == 'USER_LIST':
+                            self._handle_user_list(msg)
+                        elif t == 'PUBLIC_KEY':
+                            self._handle_public_key_response(msg)
+                        elif t == 'ERROR':
+                            logger.warning(f"Server error: {msg.get('message')}")
+
+                    except Exception as e:
+                        logger.error(f"Receive error: {e}")
 
         except Exception as e:
             if not self.shutdown_event.is_set():
@@ -214,6 +261,10 @@ class E2EEClient:
         others = [u for u in users if u != self.username]
         if others:
             print(f"\n[Server] Online: {', '.join(others)}")
+            # Auto-fetch keys for users we don't have yet
+            for user in others:
+                if user not in self.peer_public_keys:
+                    self._request_public_key(user)
             print(">>> ", end="", flush=True)
 
     def _handle_public_key_response(self, msg: dict):
@@ -232,7 +283,7 @@ class E2EEClient:
 
     def _input_loop(self):
         """Read user commands and messages from stdin."""
-        print("Commands: @user <message>  |  /list  |  /key <user>  |  /quit")
+        print("Commands: @user <message> | /send user <message> | /list | /quit")
         print(">>> ", end="", flush=True)
 
         try:
@@ -246,18 +297,23 @@ class E2EEClient:
                     break
                 elif line.startswith('/list'):
                     self.socket.send(json.dumps({'type': 'GET_USER_LIST'}).encode('utf-8'))
-                elif line.startswith('/key '):
-                    uname = line.split(' ', 1)[1].strip()
-                    self._request_public_key(uname)
+                elif line.startswith('/send '):
+                    parts = line.split(' ', 2)
+                    if len(parts) >= 3:
+                        recipient = parts[1]
+                        message = parts[2]
+                        self._send_e2ee_message(recipient, message, auto_wait=True)
+                    else:
+                        print("Usage: /send username message")
                 elif line.startswith('@'):
                     parts = line.split(' ', 1)
                     if len(parts) == 2:
                         recipient = parts[0][1:]
-                        self._send_e2ee_message(recipient, parts[1])
+                        self._send_e2ee_message(recipient, parts[1], auto_wait=True)
                     else:
                         print("Usage: @username <message>")
                 else:
-                    print("Usage: @username <message>, /list, /key <username>, /quit")
+                    print("Usage: @user msg | /send user msg | /list | /quit")
 
                 print(">>> ", end="", flush=True)
 
@@ -270,18 +326,36 @@ class E2EEClient:
         """Ask the server for a peer's public key."""
         self.socket.send(json.dumps({'type': 'GET_PUBLIC_KEY', 'username': username}).encode('utf-8'))
 
-    def _send_e2ee_message(self, recipient: str, message: str):
+    def _send_e2ee_message(self, recipient: str, message: str, auto_wait: bool = False):
         """
         Send a hybrid-encrypted, signed message to recipient.
 
-        If recipient's public key is not yet known, request it first and
-        prompt the user to retry once the key arrives.
+        If recipient's public key is not yet known, request it and optionally wait.
+        
+        Args:
+            recipient: Username of recipient 
+            message: Message to send
+            auto_wait: If True, request key and wait up to 2 seconds
         """
         if recipient not in self.peer_public_keys:
             logger.info(f"Requesting public key for '{recipient}'…")
             self._request_public_key(recipient)
-            print(f"[Client] Fetching key for '{recipient}'. Retry once key is received.")
-            return
+            
+            if auto_wait:
+                # Try to wait for key to arrive (with timeout)
+                print(f"[Client] Fetching key for '{recipient}' (waiting 2 seconds)...")
+                for _ in range(20):  # 20 * 0.1s = 2 seconds
+                    if recipient in self.peer_public_keys:
+                        print(f"[Client] Key received! Sending message...")
+                        break
+                    import time
+                    time.sleep(0.1)
+                else:
+                    print(f"[Client] Key not received yet. Try again in a moment.")
+                    return
+            else:
+                print(f"[Client] Fetching key for '{recipient}'. Send message again once key is received.")
+                return
 
         try:
             # 1. Generate a fresh 32-byte AES session key
@@ -330,15 +404,21 @@ class E2EEClient:
 def main():
     host = 'localhost'
     port = 5001
-
+    
+    # Parse arguments: allow [port] or [host port]
     if len(sys.argv) > 1:
-        host = sys.argv[1]
-    if len(sys.argv) > 2:
+        # If single argument is numeric, treat it as port; otherwise as host
         try:
-            port = int(sys.argv[2])
+            port = int(sys.argv[1])
         except ValueError:
-            print(f"Usage: {sys.argv[0]} [host] [port]")
-            sys.exit(1)
+            host = sys.argv[1]
+            # Check if there's a second argument (port)
+            if len(sys.argv) > 2:
+                try:
+                    port = int(sys.argv[2])
+                except ValueError:
+                    print(f"Usage: {sys.argv[0]} [port] or [host port]")
+                    sys.exit(1)
 
     client = E2EEClient(host=host, port=port)
     client.connect()

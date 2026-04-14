@@ -173,29 +173,72 @@ class ECDHServer:
             self._broadcast_user_list()
 
             # Phase 3: Message relay loop
+            buffer = ""  # Buffer for incomplete JSON messages
             while not self.shutdown_event.is_set():
                 data = client_socket.recv(8192)
                 if not data:
                     break
 
-                try:
-                    msg = json.loads(data.decode('utf-8'))
-                    t = msg.get('type')
+                # Add new data to buffer
+                buffer += data.decode('utf-8')
 
-                    if t == 'MSG':
-                        self._route_message(username, msg)
-                    elif t == 'GET_KEYS':
-                        self._send_peer_keys(client_socket, msg.get('username'))
-                    elif t == 'UPDATE_ECDH':
-                        # Refresh ephemeral ECDH public key
-                        new_ecdh_bytes = bytes.fromhex(msg['ecdh_pub_hex'])
-                        with self.clients_lock:
-                            if username in self.clients:
-                                self.clients[username]['ecdh_pub_bytes'] = new_ecdh_bytes
-                        logger.debug(f"'{username}' refreshed ECDH public key")
+                # Try to parse one or more complete JSON objects from buffer
+                while buffer:
+                    # Find the next complete JSON object
+                    buffer = buffer.lstrip()  # Remove leading whitespace
+                    if not buffer:
+                        break
 
-                except Exception as e:
-                    logger.error(f"Message error for '{username}': {e}")
+                    # Try to find complete JSON object
+                    brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    end_pos = 0
+
+                    for i, char in enumerate(buffer):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                        elif not in_string:
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end_pos = i + 1
+                                    break
+
+                    if end_pos == 0:
+                        # Incomplete JSON, need more data
+                        break
+
+                    # Extract and parse the complete JSON object
+                    json_str = buffer[:end_pos]
+                    buffer = buffer[end_pos:]
+
+                    try:
+                        msg = json.loads(json_str)
+                        t = msg.get('type')
+
+                        if t == 'MSG':
+                            self._route_message(username, msg)
+                        elif t == 'GET_KEYS':
+                            self._send_peer_keys(client_socket, msg.get('username'))
+                        elif t == 'UPDATE_ECDH':
+                            # Refresh ephemeral ECDH public key
+                            new_ecdh_bytes = bytes.fromhex(msg['ecdh_pub_hex'])
+                            with self.clients_lock:
+                                if username in self.clients:
+                                    self.clients[username]['ecdh_pub_bytes'] = new_ecdh_bytes
+                            logger.debug(f"'{username}' refreshed ECDH public key")
+
+                    except Exception as e:
+                        logger.error(f"Message error for '{username}': {e}")
 
         except Exception as e:
             logger.error(f"Handler error for '{username}': {e}")
