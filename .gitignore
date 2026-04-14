@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 
+# PDF files (generated/temporary)
+*.pdf
+
 # C extensions
 *.c
 *.o
@@ -178,3 +181,7 @@ env/
 *.iml
 *.iws
 *.ipr
+
+# Runtime files created by servers
+log_*.txt
+this_is_safe.txt

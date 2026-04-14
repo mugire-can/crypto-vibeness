@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-Crypto Vibeness - Jour 2: Encrypted Chat Client
-Chat client with AES-256 symmetric encryption.
+Crypto Vibeness - Jour 2: Encrypted Chat Client with Per-User Keys
 
 Features:
-- Connect to server with encryption
-- Password-based key derivation (PBKDF2)
-- AES-256-CBC encryption of all messages
-- HMAC authentication for integrity
-- Non-blocking I/O with threading
-- Transparent encryption (user sees plaintext)
+- Authenticate with server (register or login)
+- Receive and store AES-256 key in ./users/<username>/key.txt
+- All messages encrypted with user's personal key
+- AES-256-CBC with HMAC-SHA256
 """
 
 import socket
 import threading
 import sys
-import queue
+import os
+import base64
 import logging
+import getpass
 from typing import Optional
 
 try:
+    sys.path.insert(0, os.path.dirname(__file__))
     from crypto_utils import (
         derive_key_from_password,
         encrypt_message,
@@ -31,285 +31,223 @@ except ImportError:
     print("❌ Error: crypto_utils module not found")
     sys.exit(1)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# Configuration constants
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 5000
 BUFFER_SIZE = 4096
 ENCODING = 'utf-8'
-DEFAULT_PASSWORD = 'password123'
+
+
+def load_or_get_key(username: str, script_dir: str) -> Optional[bytes]:
+    """Load AES key from ./users/<username>/key.txt if it exists."""
+    key_path = os.path.join(script_dir, "users", username, "key.txt")
+    if os.path.exists(key_path):
+        try:
+            with open(key_path, "r") as f:
+                return base64.b64decode(f.read().strip())
+        except Exception:
+            return None
+    return None
+
+
+def save_key(username: str, key_b64: str, script_dir: str) -> None:
+    """Save AES key to ./users/<username>/key.txt."""
+    key_dir = os.path.join(script_dir, "users", username)
+    os.makedirs(key_dir, exist_ok=True)
+    key_path = os.path.join(key_dir, "key.txt")
+    with open(key_path, "w") as f:
+        f.write(key_b64 + "\n")
+    logger.info(f"Key saved to {key_path}")
 
 
 class EncryptedChatClient:
-    """Encrypted chat client with AES-256 symmetric encryption."""
+    """Encrypted chat client with per-user AES key."""
 
     def __init__(self, host: str, port: int):
-        """
-        Initialize encrypted chat client.
-
-        Args:
-            host: Server host address
-            port: Server port number
-        """
         self.host = host
         self.port = port
         self.socket: Optional[socket.socket] = None
         self.connected = False
         self.username: Optional[str] = None
-        self.encryption_key: Optional[bytes] = None
-        self.message_queue: queue.Queue = queue.Queue()
-        self.input_lock = threading.Lock()
+        self.aes_key: Optional[bytes] = None
+        self._recv_buffer = b""
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    def _send_line(self, text: str) -> bool:
+        try:
+            self.socket.sendall((text + "\n").encode(ENCODING))
+            return True
+        except Exception:
+            self.connected = False
+            return False
+
+    def _recv_line(self) -> Optional[str]:
+        try:
+            while b"\n" not in self._recv_buffer:
+                chunk = self.socket.recv(BUFFER_SIZE)
+                if not chunk:
+                    return None
+                self._recv_buffer += chunk
+            idx = self._recv_buffer.index(b"\n")
+            line = self._recv_buffer[:idx]
+            self._recv_buffer = self._recv_buffer[idx + 1:]
+            return line.decode(ENCODING).strip()
+        except Exception:
+            return None
 
     def connect(self) -> bool:
-        """Connect to the server."""
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((self.host, self.port))
-            self.connected = True
-            logger.info(f"Connected to {self.host}:{self.port}")
             return True
         except ConnectionRefusedError:
-            print(f"\n❌ Error: Could not connect to {self.host}:{self.port}")
-            print("   Make sure the server is running.")
-            logger.error(f"Connection refused to {self.host}:{self.port}")
+            print(f"❌ Cannot connect to {self.host}:{self.port}")
             return False
         except Exception as e:
-            print(f"\n❌ Connection error: {e}")
-            logger.error(f"Failed to connect: {e}")
+            print(f"❌ Connection error: {e}")
             return False
 
-    def get_username(self) -> bool:
-        """Request username from server and get user input."""
-        try:
-            prompt = self.socket.recv(BUFFER_SIZE).decode(ENCODING)
-            if prompt:
-                print(prompt, end='', flush=True)
-
-            self.username = input().strip()
-
-            if not self.username:
-                print("❌ Username cannot be empty.")
-                logger.warning("User provided empty username")
+    def authenticate(self) -> bool:
+        """Handle auth flow with server."""
+        while True:
+            line = self._recv_line()
+            if not line:
+                print("❌ Connection lost")
                 return False
 
-            self.socket.send(self.username.encode(ENCODING))
+            if line.startswith("AUTH: Enter username:"):
+                print(line[6:], end=" ", flush=True)
+                self.username = input().strip()
+                self._send_line(self.username)
 
-            response = self.socket.recv(BUFFER_SIZE).decode(ENCODING)
-            if response:
-                print(response, end='', flush=True)
+            elif line.startswith("AUTH: New user."):
+                print(f"\n📋 {line[6:]}")
+                password = getpass.getpass("Password: ")
+                self._send_line(password)
 
-            if "already taken" in response.lower() or "closed" in response.lower():
-                logger.warning(f"Username '{self.username}' rejected by server")
-                return False
+            elif line.startswith("AUTH: Password:"):
+                password = getpass.getpass("Password: ")
+                self._send_line(password)
 
-            logger.info(f"Username set to '{self.username}'")
-            return True
+            elif line.startswith("AUTH: Confirm password:"):
+                confirm = getpass.getpass("Confirm password: ")
+                self._send_line(confirm)
 
-        except Exception as e:
-            print(f"\n❌ Error during username setup: {e}")
-            logger.error(f"Error during username negotiation: {e}")
-            return False
-
-    def setup_encryption(self) -> bool:
-        """Setup encryption with password."""
-        try:
-            with self.input_lock:
-                password = input("\n🔐 Enter encryption password (default: password123): ").strip()
-                if not password:
-                    password = DEFAULT_PASSWORD
-
-            # Derive key from password
-            self.encryption_key, _ = derive_key_from_password(password)
-            logger.info("Encryption key derived from password")
-            print("✅ Encryption key configured")
-            return True
-
-        except Exception as e:
-            print(f"\n❌ Error setting up encryption: {e}")
-            logger.error(f"Error deriving key: {e}")
-            return False
-
-    def receive_messages(self) -> None:
-        """Receive and decrypt messages from server."""
-        try:
-            while self.connected:
-                try:
-                    encrypted_message = self.socket.recv(BUFFER_SIZE).decode(ENCODING)
-                    if not encrypted_message:
-                        self.message_queue.put(None)
-                        break
-
+            elif line.startswith("AUTH_OK:"):
+                # Check for key in the response
+                msg = line[8:].strip()
+                if "Your key" in msg and ":" in msg:
+                    # Extract key from "Registered. Your key (store it): <key_b64>"
+                    key_b64 = msg.split(":")[-1].strip()
                     try:
-                        # Decode transmission format
-                        ciphertext, iv = decode_from_transmission(encrypted_message)
-                        # Decrypt message
-                        plaintext = decrypt_message(ciphertext, iv, self.encryption_key)
-                        self.message_queue.put(plaintext)
-                    except ValueError as e:
-                        logger.warning(f"Decryption failed: {e}")
-                        self.message_queue.put(f"⚠️  Failed to decrypt message: {str(e)}")
+                        self.aes_key = base64.b64decode(key_b64)
+                        save_key(self.username, key_b64, self.script_dir)
+                        print(f"✅ {msg}")
+                        print(f"🔑 Key saved to users/{self.username}/key.txt")
                     except Exception as e:
-                        logger.error(f"Error decrypting: {e}")
-                        self.message_queue.put(None)
+                        print(f"⚠️  Could not save key: {e}")
+                else:
+                    # Login: load key from file
+                    self.aes_key = load_or_get_key(self.username, self.script_dir)
+                    if not self.aes_key:
+                        print("⚠️  No key file found. Messages will fail to decrypt.")
+                    print(f"✅ {msg}")
+                return True
 
-                except socket.timeout:
-                    continue
-        except Exception as e:
-            logger.error(f"Error receiving messages: {e}")
-            self.message_queue.put(None)
-        finally:
-            self.connected = False
+            elif line.startswith("ERROR:"):
+                print(f"❌ {line[7:]}")
+                return False
 
-    def display_messages(self) -> None:
-        """Display decrypted messages to the user."""
+            elif line.startswith("WELCOME:"):
+                print(f"ℹ️  {line[8:].strip()}")
+                return True
+
+    def _receive_loop(self) -> None:
         while self.connected:
-            try:
-                message = self.message_queue.get(timeout=0.1)
-                if message is None:
-                    break
-                with self.input_lock:
-                    print(message, end='', flush=True)
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Error displaying message: {e}")
+            line = self._recv_line()
+            if line is None:
+                print("\n[Disconnected from server]")
+                self.connected = False
                 break
 
-    def send_message(self, plaintext: str) -> None:
-        """Encrypt and send a message."""
-        try:
-            # Encrypt the message
-            ciphertext, iv = encrypt_message(plaintext, self.encryption_key)
-            # Encode for transmission
-            transmission = encode_for_transmission(ciphertext, iv)
-            # Send encrypted message
-            self.socket.send(transmission.encode(ENCODING))
-            logger.debug(f"Sent encrypted message")
-        except Exception as e:
-            logger.error(f"Error sending message: {e}")
-            self.connected = False
-
-    def handle_user_input(self) -> None:
-        """Handle user input in main thread."""
-        try:
-            while self.connected:
-                try:
-                    with self.input_lock:
-                        user_input = input()
-
-                    if not user_input:
-                        continue
-
-                    # Handle commands
-                    if user_input.lower() == '/quit':
-                        logger.info("User requested quit")
-                        self.send_message(user_input)
-                        break
-
-                    # Send regular message (encrypted)
-                    self.send_message(user_input)
-
-                except EOFError:
-                    logger.info("EOF received from stdin")
-                    break
-        except KeyboardInterrupt:
-            logger.info("Keyboard interrupt received")
-        except Exception as e:
-            logger.error(f"Error in user input handler: {e}")
-        finally:
-            self.connected = False
-
-    def disconnect(self) -> None:
-        """Disconnect from the server gracefully."""
-        self.connected = False
-        try:
-            if self.socket:
-                self.socket.close()
-                logger.info("Socket closed")
-        except Exception as e:
-            logger.error(f"Error closing socket: {e}")
+            if line.startswith("WELCOME:"):
+                print(f"\n✅ {line[8:].strip()}")
+            elif line.startswith("SYSTEM:"):
+                print(f"\n* {line[7:].strip()}")
+            elif line.startswith("ERROR:"):
+                print(f"\n❌ {line[6:].strip()}")
+            else:
+                # Assume encrypted message
+                if self.aes_key:
+                    try:
+                        ciphertext, iv = decode_from_transmission(line)
+                        plaintext = decrypt_message(ciphertext, iv, self.aes_key)
+                        print(f"\n{plaintext}")
+                    except Exception as e:
+                        print(f"\n[Cannot decrypt message: {e}]")
+                else:
+                    print(f"\n[encrypted - no key available]")
 
     def run(self) -> None:
-        """Run the client main loop."""
-        # Connect to server
         if not self.connect():
             return
 
-        # Get username
-        if not self.get_username():
-            self.disconnect()
-            return
+        print("=" * 60)
+        print("🔐 Crypto Vibeness - Encrypted Chat Client (Jour 2)")
+        print("=" * 60)
 
-        # Setup encryption
-        if not self.setup_encryption():
-            self.disconnect()
+        if not self.authenticate():
+            self.socket.close()
             return
 
         self.connected = True
 
-        # Start receive thread
-        receive_thread = threading.Thread(
-            target=self.receive_messages,
-            daemon=True
-        )
-        receive_thread.start()
+        recv_thread = threading.Thread(target=self._receive_loop, daemon=True)
+        recv_thread.start()
 
-        # Start display thread
-        display_thread = threading.Thread(
-            target=self.display_messages,
-            daemon=True
-        )
-        display_thread.start()
+        print("\nType messages (encrypted with your key). /quit to exit.\n")
 
-        # Handle user input in main thread
-        self.handle_user_input()
-
-        # Disconnect
-        self.disconnect()
-        print("\n👋 Disconnected from server")
-
-
-def parse_arguments() -> tuple[str, int]:
-    """Parse command-line arguments for host and port."""
-    host = DEFAULT_HOST
-    port = DEFAULT_PORT
-
-    if len(sys.argv) > 1:
-        host = sys.argv[1]
-
-    if len(sys.argv) > 2:
         try:
-            port = int(sys.argv[2])
-            if not (1 <= port <= 65535):
-                print("❌ Error: Port must be between 1 and 65535")
-                sys.exit(1)
-        except ValueError:
-            print("❌ Error: Port must be an integer")
-            sys.exit(1)
-
-    return host, port
+            while self.connected:
+                try:
+                    line = input()
+                    if not self.connected:
+                        break
+                    if line.lower() == "/quit":
+                        self._send_line("/quit")
+                        break
+                    if self.aes_key:
+                        ciphertext, iv = encrypt_message(line, self.aes_key)
+                        transmission = encode_for_transmission(ciphertext, iv)
+                        self._send_line(transmission)
+                    else:
+                        print("❌ No encryption key available")
+                except EOFError:
+                    break
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.connected = False
+            try:
+                self.socket.close()
+            except Exception:
+                pass
+            print("\n👋 Disconnected")
 
 
 def main() -> None:
-    """Main entry point for the encrypted chat client."""
-    host, port = parse_arguments()
-
-    if len(sys.argv) == 1:
-        print("=" * 60)
-        print("🔐 Crypto Vibeness - Encrypted Chat Client (Jour 2)")
-        print("=" * 60)
-        print(f"Connecting to {host}:{port}...")
-        print("Encryption: AES-256-CBC with PBKDF2 key derivation")
-        print("Commands: /quit (exit)")
-        print("=" * 60)
-
+    host = DEFAULT_HOST
+    port = DEFAULT_PORT
+    if len(sys.argv) > 1:
+        host = sys.argv[1]
+    if len(sys.argv) > 2:
+        try:
+            port = int(sys.argv[2])
+        except ValueError:
+            print("Usage: client.py [host] [port]")
+            sys.exit(1)
     client = EncryptedChatClient(host, port)
     client.run()
 

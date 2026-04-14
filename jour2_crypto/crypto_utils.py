@@ -1,8 +1,15 @@
 """
 Symmetric encryption utilities for Crypto Vibeness.
 
-This module provides AES-256 encryption, PBKDF2 key derivation, and HMAC authentication
-for secure message encryption and decryption with authentication.
+This module provides:
+- AES-256-CBC encryption with HMAC-SHA256 authentication (legacy/compatible)
+- AES-256-GCM authenticated encryption (recommended, simpler, faster)
+- PBKDF2-SHA256 key derivation
+- Base64 encode/decode helpers for transmission
+
+AES-GCM is an AEAD (Authenticated Encryption with Associated Data) mode that
+provides both confidentiality and integrity in a single primitive, making a
+separate HMAC unnecessary.
 """
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -16,6 +23,9 @@ import hmac as hmac_module
 # Constants
 ITERATIONS = 480000
 ALGORITHM_NAME = 'AES-256-CBC'
+GCM_ALGORITHM_NAME = 'AES-256-GCM'
+GCM_NONCE_SIZE = 12   # 96-bit nonce recommended for GCM
+GCM_TAG_SIZE = 16     # 128-bit authentication tag
 
 
 def derive_key_from_password(password: str, salt: bytes = None) -> tuple[bytes, bytes]:
@@ -50,6 +60,10 @@ def derive_key_from_password(password: str, salt: bytes = None) -> tuple[bytes, 
     key = kdf.derive(password.encode())
     return key, salt
 
+
+# ---------------------------------------------------------------------------
+# AES-256-CBC + HMAC-SHA256  (Encrypt-then-MAC)
+# ---------------------------------------------------------------------------
 
 def encrypt_message(plaintext: str, key: bytes) -> tuple[bytes, bytes]:
     """
@@ -160,28 +174,102 @@ def decrypt_message(encrypted_data: bytes, iv: bytes, key: bytes) -> str:
     return plaintext.decode('utf-8')
 
 
-def encode_for_transmission(ciphertext: bytes, iv: bytes) -> str:
-    """
-    Base64 encode IV and ciphertext for safe transmission.
+# ---------------------------------------------------------------------------
+# AES-256-GCM  (Authenticated Encryption — recommended)
+# ---------------------------------------------------------------------------
 
-    This function encodes the IV and ciphertext (which may have HMAC appended) using
-    Base64 to create a safe string format for transmission over text-based channels.
+def encrypt_message_gcm(plaintext: str, key: bytes) -> tuple[bytes, bytes]:
+    """
+    Encrypt plaintext using AES-256-GCM (Authenticated Encryption).
+
+    GCM (Galois/Counter Mode) provides both confidentiality and integrity in a
+    single pass, with no need for a separate HMAC.  The 16-byte authentication
+    tag is appended to the ciphertext in the returned value.
 
     Args:
-        ciphertext: Ciphertext bytes (may include HMAC appended from encrypt_message).
-        iv: 16-byte initialization vector.
+        plaintext: String to encrypt.
+        key: 32-byte AES-256 key.
+
+    Returns:
+        tuple: (ciphertext_with_tag, nonce) where:
+            - ciphertext_with_tag: ciphertext concatenated with the 16-byte GCM tag
+            - nonce: 12-byte random nonce
+
+    Raises:
+        ValueError: If key length is not 32 bytes.
+    """
+    if not isinstance(key, bytes) or len(key) != 32:
+        raise ValueError("Key must be 32 bytes for AES-256-GCM")
+
+    nonce = os.urandom(GCM_NONCE_SIZE)
+    cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(plaintext.encode('utf-8')) + encryptor.finalize()
+    tag = encryptor.tag  # 16-byte authentication tag
+
+    return ciphertext + tag, nonce
+
+
+def decrypt_message_gcm(encrypted_data: bytes, nonce: bytes, key: bytes) -> str:
+    """
+    Decrypt and authenticate AES-256-GCM encrypted message.
+
+    Args:
+        encrypted_data: ciphertext concatenated with 16-byte GCM tag.
+        nonce: 12-byte nonce used during encryption.
+        key: 32-byte AES-256 key.
+
+    Returns:
+        str: Decrypted plaintext string.
+
+    Raises:
+        ValueError: If authentication fails (data tampered) or inputs are invalid.
+    """
+    if not isinstance(key, bytes) or len(key) != 32:
+        raise ValueError("Key must be 32 bytes for AES-256-GCM")
+
+    if not isinstance(nonce, bytes) or len(nonce) != GCM_NONCE_SIZE:
+        raise ValueError(f"Nonce must be {GCM_NONCE_SIZE} bytes for AES-256-GCM")
+
+    if len(encrypted_data) < GCM_TAG_SIZE:
+        raise ValueError("Encrypted data too short to contain GCM tag")
+
+    ciphertext = encrypted_data[:-GCM_TAG_SIZE]
+    tag = encrypted_data[-GCM_TAG_SIZE:]
+
+    try:
+        cipher = Cipher(
+            algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+    except Exception as exc:
+        raise ValueError("GCM authentication failed - data may have been tampered with") from exc
+
+    return plaintext.decode('utf-8')
+
+
+# ---------------------------------------------------------------------------
+# Transmission helpers (work for both CBC and GCM)
+# ---------------------------------------------------------------------------
+
+def encode_for_transmission(ciphertext: bytes, iv: bytes) -> str:
+    """
+    Base64 encode IV/nonce and ciphertext for safe transmission.
+
+    Works for both AES-CBC (16-byte IV) and AES-GCM (12-byte nonce).
+
+    Args:
+        ciphertext: Ciphertext bytes (may include HMAC or GCM tag).
+        iv: Initialization vector or nonce.
 
     Returns:
         str: Encoded string in format "base64(iv):base64(ciphertext)".
-
-    Raises:
-        TypeError: If parameters are not bytes.
     """
     if not isinstance(ciphertext, bytes):
         raise TypeError("Ciphertext must be bytes")
-
     if not isinstance(iv, bytes):
-        raise TypeError("IV must be bytes")
+        raise TypeError("IV/nonce must be bytes")
 
     iv_b64 = base64.b64encode(iv).decode('ascii')
     ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
@@ -191,18 +279,15 @@ def encode_for_transmission(ciphertext: bytes, iv: bytes) -> str:
 
 def decode_from_transmission(encoded: str) -> tuple[bytes, bytes]:
     """
-    Base64 decode IV and ciphertext from transmission format.
+    Base64 decode IV/nonce and ciphertext from transmission format.
 
-    This function decodes a transmission-formatted string back to binary IV and
-    ciphertext components.
+    Works for both AES-CBC (16-byte IV) and AES-GCM (12-byte nonce).
 
     Args:
         encoded: Encoded string in format "base64(iv):base64(ciphertext)".
 
     Returns:
-        tuple: (ciphertext, iv) where:
-            - ciphertext: Decoded ciphertext bytes (may have HMAC appended)
-            - iv: Decoded 16-byte initialization vector
+        tuple: (ciphertext, iv) where both are decoded bytes.
 
     Raises:
         ValueError: If format is invalid or Base64 decoding fails.
@@ -218,8 +303,8 @@ def decode_from_transmission(encoded: str) -> tuple[bytes, bytes]:
         iv = base64.b64decode(iv_b64)
         ciphertext = base64.b64decode(ciphertext_b64)
 
-        if len(iv) != 16:
-            raise ValueError("Decoded IV must be 16 bytes")
+        if len(iv) not in (12, 16):
+            raise ValueError("Decoded IV/nonce must be 12 bytes (GCM) or 16 bytes (CBC)")
 
         return ciphertext, iv
 
@@ -227,3 +312,5 @@ def decode_from_transmission(encoded: str) -> tuple[bytes, bytes]:
         raise ValueError(f"Failed to decode transmission format: {e}") from e
     except Exception as e:
         raise ValueError(f"Unexpected error during transmission decoding: {e}") from e
+
+
