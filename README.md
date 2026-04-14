@@ -62,32 +62,41 @@ Implement E2EE with digital signatures for secure 1-1 communication.
 ## Technical Requirements
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.8 or higher
 - `cryptography` library (for crypto primitives)
 - Standard library modules: `socket`, `threading`, `json`, `hashlib`, `hmac`
 
-### Installation
+### Installation & Setup
 
+📖 **For detailed setup instructions**, see [DEVELOPMENT.md](./DEVELOPMENT.md)
+
+Quick start:
 ```bash
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install cryptography
+pip install -r requirements.txt
 ```
 
 ### Running the Project
 
+**See [START_HERE.md](./START_HERE.md) for quick-start instructions!**
+
 **Day 1 (YOLO - Basic Chat):**
 
 ```bash
-# Terminal 1: Start the server
-python jour1_yolo/server.py 5000
+cd jour1_yolo
 
-# Terminal 2+: Connect clients
-python jour1_yolo/client.py localhost 5000
+# Terminal 1: Start the server
+python3 server.py 5000
+
+# Terminal 2+: Connect clients  
+python3 client.py localhost 5000
 ```
+
+Type a username and start chatting. Type `/quit` to disconnect.
 
 ## Important Notes on Cryptography
 

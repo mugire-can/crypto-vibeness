@@ -1,0 +1,38 @@
+[project]
+name = "crypto-vibeness"
+version = "3.0.0"
+description = "Educational cryptography project teaching symmetric and asymmetric encryption through progressive chat system implementation"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Copilot", email = "dev@example.com"}
+]
+keywords = ["cryptography", "encryption", "education", "aes", "rsa", "e2e"]
+
+dependencies = [
+    "cryptography>=42.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "pylint>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mugire-can/crypto-vibeness"
+Repository = "https://github.com/mugire-can/crypto-vibeness.git"
+Issues = "https://github.com/mugire-can/crypto-vibeness/issues"
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.pylint.messages_control]
+disable = ["C0111"]  # missing-docstring (we use docstrings strategically)
