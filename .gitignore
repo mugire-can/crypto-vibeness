@@ -181,3 +181,7 @@ env/
 *.iml
 *.iws
 *.ipr
+
+# Runtime files created by servers
+log_*.txt
+this_is_safe.txt
