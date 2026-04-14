@@ -185,3 +185,8 @@ env/
 # Runtime files created by servers
 log_*.txt
 this_is_safe.txt
+
+# MD5 demonstration/cracked files (for educational purposes only)
+md5_decrypted.txt
+md5_yolo.txt
+*_decrypted.txt
