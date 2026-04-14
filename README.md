@@ -1,6 +1,6 @@
-# Crypto Vibeness — A Progressive Cryptography Chat Project
+# Crypto Vibeness — Système de Chat Sécurisé Progressif
 
-**Crypto Vibeness** is an educational project that builds a secure multi-user chat system step by step, introducing cryptographic concepts at each stage.
+Educational project: build a secure multi-user chat system step by step, introducing cryptographic concepts at each stage.
 
 ---
 
@@ -8,35 +8,36 @@
 
 ```
 crypto-vibeness/
-├── jour1_yolo/              # Day 1 – Basic IRC-like chat (no encryption)
-│   ├── server.py
-│   ├── client.py
-│   ├── config.py
-│   ├── test_server.py
-│   ├── test_comprehensive.py
+├── jour1_yolo/              # Day 1 – YOLO + Authentication
+│   ├── server.py            # Full server: rooms, colors, logging, auth (MD5→bcrypt)
+│   ├── client.py            # Full client: auth flow, room commands, colored output
+│   ├── config.py            # Server/client configuration
+│   ├── password_rules.json  # Password policy (loaded at runtime)
 │   └── README_JOUR1.md
 │
-├── jour2_crypto/            # Day 2 – Symmetric encryption (AES-256-CBC + HMAC, AES-256-GCM)
-│   ├── server.py
-│   ├── client.py
+├── jour2_crypto/            # Day 2 – Symmetric encryption + per-user keys
+│   ├── server.py            # Per-user AES-256 keys; argon2/scrypt password hashing
+│   ├── client.py            # Stores own key in ./users/<username>/key.txt
 │   ├── crypto_utils.py      # AES-256-CBC+HMAC & AES-256-GCM, PBKDF2
-│   └── config.py
+│   ├── config.py
+│   ├── md5_yolo.txt         # Hash left by the "marseillais hacker"
+│   └── md5_decrypted.txt    # Cracked message + hashcat command
 │
 ├── jour3_asymmetric/        # Day 3 – Hybrid E2EE (RSA-OAEP + AES-256-GCM + RSA-PSS)
-│   ├── server.py
-│   ├── client.py
-│   ├── crypto_rsa.py        # RSA-2048 key generation, OAEP encryption, PSS signing
-│   ├── crypto_utils.py      # AES-256-GCM utilities (shared with Jour 2)
+│   ├── server.py            # Blind relay: distributes public keys, routes ciphertext
+│   ├── client.py            # RSA-OAEP key encapsulation + AES-GCM + RSA-PSS signatures
+│   ├── crypto_rsa.py        # RSA-2048 key generation, OAEP, PSS
+│   ├── crypto_utils.py      # AES-256-GCM utilities
 │   └── config.py
 │
-├── jour4_ecdh/              # Day 4 – Modern EC: ECDH + ECDSA + AES-256-GCM (PFS)
+├── jour4_ecdh/              # Bonus – Modern EC: ECDH + ECDSA + AES-256-GCM (PFS)
 │   ├── server.py
 │   ├── client.py
 │   ├── crypto_ecdh.py       # X25519 ECDH, ECDSA/P-256, AES-256-GCM, HKDF
 │   └── config.py
 │
 ├── tests/
-│   └── test_crypto.py       # Unit tests for all crypto modules (61 tests)
+│   └── test_crypto.py       # 61 unit tests for all crypto modules
 │
 ├── requirements.txt
 ├── pyproject.toml
@@ -47,111 +48,124 @@ crypto-vibeness/
 
 ## Learning Path
 
-### Jour 1 — YOLO (No Security)
+### Jour 1 — Part 1: YOLO (Basic chat + rooms + colors)
 
-A plain TCP multi-user chat server and client.  No authentication, no encryption.
+Multi-user IRC-like chat with rooms and visual identity.
 
-**Concepts:** sockets, threading, message broadcasting
+**Features:**
+- Multiple simultaneous clients
+- Unique username enforcement
+- **Room system**: create and join rooms, optional room passwords
+- Password-protected rooms shown with 🔒 in room list
+- **Deterministic colors** per user (consistent across all clients)
+- **Timestamps** on all messages
+- **File logging**: `log_YYYY-MM-DD_HH-MM-SS.txt`
+
+**Commands:** `/join <room> [password]`, `/create <room> [password]`, `/rooms`, `/users`, `/quit`
 
 ```bash
 cd jour1_yolo
-# Terminal 1
-python3 server.py 5000
-# Terminal 2+
-python3 client.py localhost 5000
+python3 server.py 5000      # Terminal 1
+python3 client.py 5000      # Terminal 2+ 
 ```
 
 ---
 
-### Jour 2 — Symmetric Cryptography
+### Jour 1 — Part 2: Authentication
 
-All messages are encrypted with **AES-256** before being sent.  The server still relays
-ciphertext; it cannot read messages because it only knows the shared password-derived key.
+Password authentication before chat access.
 
-**Cryptographic primitives:**
-| Primitive | Purpose |
-|-----------|---------|
-| PBKDF2-SHA256 (480 000 iterations) | Password → AES key derivation |
-| AES-256-CBC + HMAC-SHA256 | Encrypt-then-MAC (legacy compatible) |
-| AES-256-GCM | Authenticated encryption (recommended) |
+**Features:**
+- First connection → user registration (password chosen + confirmed)
+- Password rules (configurable in `password_rules.json`): min 8 chars, 1 digit, 1 uppercase
+- **Password strength indicator** (entropy-based: Weak / Fair / Strong / Very Strong)
+- Passwords stored **MD5-hashed** (intentionally weak — see Jour 2) in `this_is_safe.txt`
+- Format: `username:md5_base64_hash`
+- Constant-time comparison (`hmac.compare_digest`)
+
+Built into the same `jour1_yolo/` server as Part 1.
+
+---
+
+### Jour 2 — Part 1: Le hacker marseillais (MD5 cracking → bcrypt)
+
+The "marseillais hacker" stole `this_is_safe.txt` and can crack MD5 hashes.
+
+**What was done:**
+- Cracked the hash left by the hacker: `35b95f7c0f63631c453220fb2a86f218` → **`CMrsBB!`**
+  - Command: `hashcat -m 0 -a 3 md5_yolo.txt '?u?u?l?l?u?u?s'`
+  - See `jour2_crypto/md5_decrypted.txt`
+
+**Upgraded password storage:**
+- Replaced MD5 with **argon2** (falls back to **scrypt**) — secure, slow-by-design
+- Per-password salt (≥ 96 bits)
+- Format: `username:algo:cost_factor:salt_b64:digest_b64`
+  - Example: `alice:argon2:3:<salt_b64>:<hash_b64>`
 
 ```bash
 cd jour2_crypto
-# Terminal 1
-python3 server.py 5000 mypassword
-# Terminal 2+
+python3 server.py 5000
 python3 client.py localhost 5000
-# Enter the same password when prompted
 ```
 
 ---
 
-### Jour 3 — Hybrid E2EE with RSA
+### Jour 2 — Part 2: Le hacker russe (Symmetric encryption per user)
 
-True **end-to-end encryption**: the server is a blind relay that cannot read any message.
+A Russian hacker recorded all network traffic. Encrypt everything!
 
-**Protocol (per message):**
-1. Sender generates a fresh 32-byte AES session key.
-2. Session key is encrypted with recipient's **RSA-2048 public key** (OAEP/SHA-256).
-3. Message is encrypted with **AES-256-GCM**.
-4. Message is signed with sender's **RSA-PSS** private key.
-5. Server forwards the opaque bundle; recipient decrypts using their RSA private key.
+**Features:**
+- At account creation: derive a personal **AES-256** key from user's secret via **PBKDF2-SHA256**
+- Server stores per-user key+salt in `user_keys_do_not_steal_plz.txt`
+- Client stores key locally in `./users/<username>/key.txt`
+- All messages encrypted with the user's own AES-256-CBC key
+- Server decrypts to relay to recipients (symmetric encryption, not E2EE)
 
-**Cryptographic primitives:**
-| Primitive | Purpose |
-|-----------|---------|
-| RSA-2048 / OAEP-SHA256 | Session key encapsulation |
-| AES-256-GCM | Message encryption (AEAD) |
-| RSA-PSS / SHA-256 | Digital signatures |
+Built into the same `jour2_crypto/` server/client.
+
+---
+
+### Jour 3 — Asymmetric + E2EE
+
+**Part 1 — Key exchange with RSA:**
+- Client generates RSA-2048 keypair (or reuses from `.priv`/`.pub` files)
+- Asymmetric encryption (RSA-OAEP) used to exchange a symmetric session key
+- No `user_keys_do_not_steal_plz.txt` on server
+
+**Part 2 — End-to-End Encryption (E2EE):**
+- Server is "honest-but-curious" — routes messages but cannot read them
+
+| Step | What happens |
+|------|-------------|
+| 1 | Client uploads its RSA public key; server maintains `{username: public_key}` directory |
+| 2 | Alice encrypts a session key with Bob's RSA public key (OAEP); sends via server; Bob decrypts with his private key |
+| 3 | All messages encrypted with AES-256-GCM using the session key |
+| 4 | Each message signed with sender's RSA private key (PSS); recipient verifies |
 
 ```bash
 cd jour3_asymmetric
-# Terminal 1
-python3 server.py 5001
-# Terminal 2+
-python3 client.py localhost 5001
-# Send: @username <message>
-# Fetch a peer's public key first: /key <username>
+python3 server.py 5001      # Terminal 1
+python3 client.py 5001      # Terminal 2+
+# /key <username> to fetch public key, then @username <message>
 ```
 
 ---
 
-### Jour 4 — ECDH + ECDSA + AES-256-GCM (Perfect Forward Secrecy)
+### Jour 4 — ECDH + ECDSA + AES-256-GCM (Bonus: Perfect Forward Secrecy)
 
-Modern cryptography using **elliptic curves** — smaller keys, faster operations, and
-**Perfect Forward Secrecy** (PFS) via ephemeral X25519 key pairs.
+Modern elliptic-curve cryptography — smaller keys, faster, PFS.
 
-**Why better than Jour 3?**
-- X25519 keys are 256 bits vs 2048 bits for equivalent RSA security
-- Each message uses a fresh ephemeral keypair → compromising one session key never
-  reveals previous sessions (PFS)
-- ECDSA/P-256 signatures are faster than RSA-PSS
-- HKDF-SHA256 provides clean key derivation from the shared secret
-
-**Protocol (per message):**
-1. Sender generates a **fresh ephemeral X25519 keypair** (PFS).
-2. ECDH exchange: `session_key = HKDF(X25519(sender_eph_priv, recipient_pub))`.
-3. Message encrypted with **AES-256-GCM**.
-4. Message signed with sender's long-term **ECDSA/P-256** private key.
-5. Sender's ephemeral public key is transmitted so the recipient can reconstruct the
-   session key.
-
-**Cryptographic primitives:**
 | Primitive | Purpose |
 |-----------|---------|
-| X25519 ECDH (ephemeral) | Session key agreement with PFS |
+| X25519 ECDH (ephemeral) | Per-message session key with PFS |
 | HKDF-SHA256 | Shared-secret → AES key derivation |
-| AES-256-GCM | Message encryption (AEAD) |
-| ECDSA / P-256 / SHA-256 | Digital signatures |
+| AES-256-GCM | AEAD encryption |
+| ECDSA / P-256 | Digital signatures |
 
 ```bash
 cd jour4_ecdh
-# Terminal 1
 python3 server.py 5002
-# Terminal 2+
-python3 client.py localhost 5002
-# Fetch peer keys: /keys <username>
-# Send: @username <message>
+python3 client.py 5002
 ```
 
 ---
@@ -160,18 +174,8 @@ python3 client.py localhost 5002
 
 ```bash
 pip install pytest
-pytest tests/ -v
+pytest tests/ -v     # 61 tests, all pass
 ```
-
-61 tests covering:
-- PBKDF2 key derivation
-- AES-256-CBC with HMAC-SHA256
-- AES-256-GCM (authenticated encryption)
-- Transmission encoding/decoding helpers
-- RSA-2048 encrypt/decrypt/sign/verify/save/load
-- X25519 ECDH key exchange
-- ECDSA/P-256 sign/verify
-- Full end-to-end integration flow
 
 ---
 
@@ -179,32 +183,15 @@ pytest tests/ -v
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
+# Optional: pip install argon2-cffi   # for argon2 password hashing in jour2
 ```
 
-Requires Python 3.8+ and the `cryptography` library (≥ 42.0).
-
 ---
 
-## Cryptography Reference
+## Security disclaimer
 
-| Concept | What it solves | Where used |
-|---------|---------------|------------|
-| Symmetric encryption | Efficient bulk data encryption | Jour 2, 3, 4 |
-| AEAD (AES-GCM) | Encryption + integrity in one primitive | Jour 2–4 |
-| Key derivation (PBKDF2) | Password → strong key | Jour 2–3 |
-| Asymmetric encryption (RSA) | Key encapsulation; no shared secret needed | Jour 3 |
-| Digital signatures | Authenticity + non-repudiation | Jour 3–4 |
-| Hybrid encryption | Combine asymmetric (key exchange) + symmetric (speed) | Jour 3–4 |
-| ECDH | Efficient key agreement | Jour 4 |
-| Perfect Forward Secrecy | Old sessions safe even if long-term key leaks | Jour 4 |
-| HKDF | Derive strong keys from shared secrets | Jour 4 |
+⚠️ **Educational project only.** Some implementations are intentionally simplified or weak (e.g., MD5 in Jour 1 is used to demonstrate its weaknesses). Do **not** use this code in production.
 
----
-
-## ⚠️  Educational Project
-
-This code is for learning purposes only.  Do **not** use in production systems without
-a thorough security review.  Always follow current NIST / ANSSI guidelines and prefer
-well-audited libraries such as TLS 1.3 for real-world communication security.
+> "Don't roll your own crypto" — except for learning purposes!
