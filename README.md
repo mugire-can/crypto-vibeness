@@ -19,9 +19,7 @@ crypto-vibeness/
 │   ├── server.py            # Per-user AES-256 keys; argon2/scrypt password hashing
 │   ├── client.py            # Stores own key in ./users/<username>/key.txt
 │   ├── crypto_utils.py      # AES-256-CBC+HMAC & AES-256-GCM, PBKDF2
-│   ├── config.py
-│   ├── md5_yolo.txt         # Hash left by the "marseillais hacker"
-│   └── md5_decrypted.txt    # Cracked message + hashcat command
+│   └── config.py
 │
 ├── jour3_asymmetric/        # Day 3 – Hybrid E2EE (RSA-OAEP + AES-256-GCM + RSA-PSS)
 │   ├── server.py            # Blind relay: distributes public keys, routes ciphertext
