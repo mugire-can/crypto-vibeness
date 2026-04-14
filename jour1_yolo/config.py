@@ -1,39 +1,32 @@
-"""
-Configuration for Day 1 - YOLO Chat System
-Shared constants used by both server and client
-"""
+"""Configuration for Day 1 - YOLO Chat System"""
 
-# Default server configuration
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 5000
+HOST_BIND = "0.0.0.0"
 
-# Message configuration
-MAX_MESSAGE_SIZE = 4096  # Maximum message size in bytes
-MESSAGE_BUFFER_SIZE = 1024  # Buffer size for receiving messages
-ENCODING = "utf-8"  # Character encoding for all messages
+MAX_MESSAGE_SIZE = 4096
+MESSAGE_BUFFER_SIZE = 4096
+ENCODING = "utf-8"
 
-# Connection configuration
-CONNECTION_TIMEOUT = 30  # Seconds to wait for initial connection
-SOCKET_TIMEOUT = 5  # Timeout for socket operations (0 = blocking)
+CONNECTION_TIMEOUT = 30
+SOCKET_TIMEOUT = None  # blocking
 
-# Server-specific
-SERVER_BACKLOG = 5  # Number of pending connections server will accept
-SHUTDOWN_TIMEOUT = 5  # Seconds to wait for clients to disconnect on shutdown
+SERVER_BACKLOG = 10
+SHUTDOWN_TIMEOUT = 5
 
-# Commands
-QUIT_COMMAND = "/quit"
-LIST_COMMAND = "/list"
-HELP_COMMAND = "/help"
+# Auth
+PASSWORD_FILE = "this_is_safe.txt"
+PASSWORD_RULES_FILE = "password_rules.json"
 
-# Message types for internal use
-MSG_TYPE_USER_MESSAGE = "message"
-MSG_TYPE_NOTIFICATION = "notification"
-MSG_TYPE_COMMAND = "command"
+# Default room
+DEFAULT_ROOM = "general"
 
-# Notification messages
-NOTIFICATION_JOINED = "has joined"
-NOTIFICATION_LEFT = "has left"
+# ANSI colors assigned to users deterministically
+COLORS = ['\033[31m', '\033[32m', '\033[33m', '\033[34m', '\033[35m', '\033[36m',
+          '\033[91m', '\033[92m', '\033[93m', '\033[94m', '\033[95m', '\033[96m']
+RESET = '\033[0m'
+COLOR_SYSTEM = '\033[90m'  # dark grey for system messages
+COLOR_ERROR = '\033[31m'   # red for errors
 
-# Logging
 LOG_FORMAT = "[%(asctime)s] %(levelname)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
