@@ -201,16 +201,4 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 - **Comments**: Only for non-obvious logic
 - **Logging**: Useful for validation, especially in later phases
 
-## Evaluation Criteria
 
-Project will be evaluated on:
-1. ✅ Functional correctness (does it work?)
-2. ✅ Code quality (clean, readable, well-structured)
-3. ✅ Cryptographic understanding (proper usage, not just implementation)
-4. ✅ Documentation quality (README, code comments, commit messages)
-5. ✅ Prompt engineering skills (effective use of AI agents)
-6. ✅ Validation thoroughness (comprehensive testing)
-
----
-
-**Good luck! Remember: understand the concepts, validate each phase, and ask your AI agent to explain any cryptographic concepts you don't understand!**
