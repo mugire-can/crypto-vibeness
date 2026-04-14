@@ -22,8 +22,8 @@ GCM_NONCE_SIZE = 12
 GCM_TAG_SIZE = 16
 HKDF_INFO = b'crypto-vibeness-jour4'
 
-# Key storage
-KEY_STORAGE_DIR = '~/.crypto_vibeness_j4'
+# Key storage (relative to user home; use Path.home() / KEY_STORAGE_DIR in code)
+KEY_STORAGE_DIR = '.crypto_vibeness_j4'
 ECDH_PRIV_EXT = '.ecdh.priv'
 ECDSA_PRIV_EXT = '.ecdsa.priv'
 ECDSA_PUB_EXT = '.ecdsa.pub'
