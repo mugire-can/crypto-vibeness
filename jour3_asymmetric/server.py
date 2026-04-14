@@ -127,23 +127,69 @@ class E2EEServer:
             self._broadcast_user_list()
 
             # Phase 3: Message relay loop
+            buffer = ""  # Buffer for incomplete JSON messages
             while not self.shutdown_event.is_set():
                 data = client_socket.recv(4096)
                 if not data:
                     break
 
-                try:
-                    msg = json.loads(data.decode('utf-8'))
-                    msg_type = msg.get('type')
+                # Add new data to buffer
+                buffer += data.decode('utf-8')
 
-                    if msg_type == 'MSG':
-                        self._route_message(username, msg)
+                # Try to parse one or more complete JSON objects from buffer
+                while buffer:
+                    # Find the next complete JSON object
+                    buffer = buffer.lstrip()  # Remove leading whitespace
+                    if not buffer:
+                        break
 
-                    elif msg_type == 'GET_PUBLIC_KEY':
-                        self._send_public_key(client_socket, msg.get('username'))
+                    # Try to find complete JSON object
+                    brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    end_pos = 0
 
-                except Exception as e:
-                    logger.error(f"Message handling error for '{username}': {e}")
+                    for i, char in enumerate(buffer):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                        elif not in_string:
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end_pos = i + 1
+                                    break
+
+                    if end_pos == 0:
+                        # Incomplete JSON, need more data
+                        break
+
+                    # Extract and parse the complete JSON object
+                    json_str = buffer[:end_pos]
+                    buffer = buffer[end_pos:]
+
+                    try:
+                        msg = json.loads(json_str)
+                        msg_type = msg.get('type')
+
+                        if msg_type == 'MSG':
+                            self._route_message(username, msg)
+
+                        elif msg_type == 'GET_PUBLIC_KEY':
+                            self._send_public_key(client_socket, msg.get('username'))
+                        
+                        elif msg_type == 'GET_USER_LIST':
+                            self._send_user_list_to_client(client_socket)
+
+                    except Exception as e:
+                        logger.error(f"Message handling error for '{username}': {e}")
 
         except Exception as e:
             logger.error(f"Client handler error for {username}: {e}")
@@ -202,6 +248,18 @@ class E2EEServer:
             client_socket.send(json.dumps(response).encode('utf-8'))
         except Exception as e:
             logger.error(f"Failed to send public key response: {e}")
+    
+    def _send_user_list_to_client(self, client_socket) -> None:
+        """Send list of online users to a single client."""
+        with self.clients_lock:
+            user_list = list(self.clients.keys())
+
+        msg = json.dumps({'type': 'USER_LIST', 'users': user_list}).encode('utf-8')
+
+        try:
+            client_socket.send(msg)
+        except Exception as e:
+            logger.error(f"Failed to send user list: {e}")
     
     def _broadcast_user_list(self):
         """Send list of online users to all connected clients."""
