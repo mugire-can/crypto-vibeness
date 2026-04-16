@@ -1,0 +1,23 @@
+[2026-04-16 10:29:56] SERVER_START: Server started on 0.0.0.0:5000 (log file: log_2026-04-16_10-29-56.txt)
+[2026-04-16 10:30:16] CONNECTION: Connection received from ('127.0.0.1', 35700)
+[2026-04-16 10:30:37] CONNECTION: Connection received from ('127.0.0.1', 46250)
+[2026-04-16 10:30:52] USER_CONNECTED: User 'samet' connected from ('127.0.0.1', 35700)
+[2026-04-16 10:30:52] ROOM_EVENT: [samet] has joined room 'general'
+[2026-04-16 10:31:31] USER_CONNECTED: User 'Bob' connected from ('127.0.0.1', 46250)
+[2026-04-16 10:31:31] ROOM_EVENT: [Bob] has joined room 'general'
+[2026-04-16 10:31:56] LIST_ROOMS: User 'samet' requested room list
+[2026-04-16 10:31:56] ROOM_CREATE: User 'samet' created room 'devroom/create' (protected=True)
+[2026-04-16 10:31:56] ROOM_EVENT: [samet] has left room 'general'
+[2026-04-16 10:31:56] ROOM_EVENT: [samet] has joined room 'devroom/create'
+[2026-04-16 10:31:56] ROOM_JOIN: User 'samet' moved from 'general' to 'devroom/create'
+[2026-04-16 10:32:17] LIST_ROOMS: User 'Bob' requested room list
+[2026-04-16 10:33:40] LIST_ROOMS: User 'samet' requested room list
+[2026-04-16 10:33:44] MESSAGE: samet@devroom/create: q
+[2026-04-16 10:33:51] MESSAGE: samet@devroom/create: quit
+[2026-04-16 10:33:54] MESSAGE: samet@devroom/create: q
+[2026-04-16 10:34:02] MESSAGE: samet@devroom/create: hello !
+[2026-04-16 10:34:14] MESSAGE: Bob@general: q
+[2026-04-16 10:34:19] MESSAGE: Bob@general: q
+[2026-04-16 10:34:26] MESSAGE: Bob@general: salut alice
+[2026-04-16 10:34:56] MESSAGE: Bob@general: ça va?
+[2026-04-16 10:40:04] SERVER_SHUTDOWN: Initiating graceful shutdown

@@ -1,0 +1,66 @@
+[2026-04-16 10:40:29] SERVER_START: Server started on 0.0.0.0:5000 (log file: log_2026-04-16_10-40-29.txt)
+[2026-04-16 10:40:45] CONNECTION: Connection received from ('127.0.0.1', 45486)
+[2026-04-16 10:40:57] USER_CONNECTED: User 'alice' connected from ('127.0.0.1', 45486)
+[2026-04-16 10:40:57] ROOM_EVENT: [alice] has joined room 'general'
+[2026-04-16 10:41:18] CONNECTION: Connection received from ('127.0.0.1', 60204)
+[2026-04-16 10:41:21] USER_CONNECTED: User 'bob' connected from ('127.0.0.1', 60204)
+[2026-04-16 10:41:21] ROOM_EVENT: [bob] has joined room 'general'
+[2026-04-16 10:41:43] LIST_ROOMS: User 'alice' requested room list
+[2026-04-16 10:41:43] ROOM_CREATE: User 'alice' created room 'devroom' (protected=False)
+[2026-04-16 10:41:43] ROOM_EVENT: [alice] has left room 'general'
+[2026-04-16 10:41:43] ROOM_EVENT: [alice] has joined room 'devroom'
+[2026-04-16 10:41:43] ROOM_JOIN: User 'alice' moved from 'general' to 'devroom'
+[2026-04-16 10:41:43] ROOM_CREATE: User 'alice' created room 'secret' (protected=True)
+[2026-04-16 10:41:43] ROOM_EVENT: [alice] has left room 'devroom'
+[2026-04-16 10:41:43] ROOM_EVENT: [alice] has joined room 'secret'
+[2026-04-16 10:41:43] ROOM_JOIN: User 'alice' moved from 'devroom' to 'secret'
+[2026-04-16 10:41:48] LIST_ROOMS: User 'alice' requested room list
+[2026-04-16 10:42:08] LIST_ROOMS: User 'bob' requested room list
+[2026-04-16 10:42:08] ROOM_EVENT: [bob] has left room 'general'
+[2026-04-16 10:42:08] ROOM_EVENT: [bob] has joined room 'devroom'
+[2026-04-16 10:42:08] ROOM_JOIN: User 'bob' moved from 'general' to 'devroom'
+[2026-04-16 10:42:08] JOIN_REJECTED: User 'bob' failed to join room 'secret' (bad password)
+[2026-04-16 10:42:09] ROOM_EVENT: [bob] has left room 'devroom'
+[2026-04-16 10:42:09] ROOM_EVENT: [bob] has joined room 'secret'
+[2026-04-16 10:42:09] ROOM_JOIN: User 'bob' moved from 'devroom' to 'secret'
+[2026-04-16 10:42:20] MESSAGE: bob@secret: salut !
+[2026-04-16 10:42:40] USER_DISCONNECTED: User 'alice' disconnected
+[2026-04-16 10:42:40] ROOM_EVENT: [alice] has left room 'secret'
+[2026-04-16 10:43:01] CONNECTION: Connection received from ('127.0.0.1', 54346)
+[2026-04-16 10:43:07] USER_CONNECTED: User 'alice' connected from ('127.0.0.1', 54346)
+[2026-04-16 10:43:07] ROOM_EVENT: [alice] has joined room 'general'
+[2026-04-16 10:43:22] MESSAGE: alice@general: comment tu vas?
+[2026-04-16 10:43:54] MESSAGE: alice@general: salut bob!
+[2026-04-16 10:44:01] MESSAGE: bob@secret: e
+[2026-04-16 10:44:12] MESSAGE: bob@secret: how are you?
+[2026-04-16 10:53:43] LIST_ROOMS: User 'alice' requested room list
+[2026-04-16 10:55:06] JOIN_REJECTED: User 'bob' failed to join room 'secret' (bad password)
+[2026-04-16 10:55:36] JOIN_REJECTED: User 'alice' failed to join room 'secret' (bad password)
+[2026-04-16 10:57:17] ROOM_CREATE: User 'alice' created room 'laplateforme' (protected=False)
+[2026-04-16 10:57:17] ROOM_EVENT: [alice] has left room 'general'
+[2026-04-16 10:57:17] ROOM_EVENT: [alice] has joined room 'laplateforme'
+[2026-04-16 10:57:17] ROOM_JOIN: User 'alice' moved from 'general' to 'laplateforme'
+[2026-04-16 10:57:56] ROOM_EVENT: [bob] has left room 'secret'
+[2026-04-16 10:57:56] ROOM_EVENT: [bob] has joined room 'laplateforme'
+[2026-04-16 10:57:56] ROOM_JOIN: User 'bob' moved from 'secret' to 'laplateforme'
+[2026-04-16 10:58:05] MESSAGE: bob@laplateforme: salut
+[2026-04-16 10:58:29] MESSAGE: alice@laplateforme: my name is alice
+[2026-04-16 10:58:57] MESSAGE: alice@laplateforme: what are you doing today?
+[2026-04-16 10:59:22] MESSAGE: bob@laplateforme: I'm at the school right now
+[2026-04-16 11:00:27] ROOM_EVENT: [alice] has left room 'laplateforme'
+[2026-04-16 11:00:27] ROOM_EVENT: [alice] has joined room 'general'
+[2026-04-16 11:00:27] ROOM_JOIN: User 'alice' moved from 'laplateforme' to 'general'
+[2026-04-16 11:00:48] MESSAGE: bob@laplateforme: what about you?
+[2026-04-16 11:01:19] ROOM_EVENT: [alice] has left room 'general'
+[2026-04-16 11:01:19] ROOM_EVENT: [alice] has joined room 'laplateforme'
+[2026-04-16 11:01:19] ROOM_JOIN: User 'alice' moved from 'general' to 'laplateforme'
+[2026-04-16 11:01:28] MESSAGE: alice@laplateforme: ddddd
+[2026-04-16 11:17:24] MESSAGE: alice@laplateforme: bob? Are you there?
+[2026-04-16 11:17:35] MESSAGE: alice@laplateforme: bob, are you there?
+[2026-04-16 11:17:47] MESSAGE: bob@laplateforme: yes, alice
+[2026-04-16 11:19:18] LIST_ROOMS: User 'alice' requested room list
+[2026-04-16 11:20:04] LIST_USERS: User 'alice' requested user list in room 'laplateforme'
+[2026-04-16 11:20:13] LIST_ROOMS: User 'alice' requested room list
+[2026-04-16 11:20:35] JOIN_REJECTED: User 'alice' failed to join room 'secret' (bad password)
+[2026-04-16 11:21:03] JOIN_REJECTED: User 'alice' failed to join room 'secret' (bad password)
+[2026-04-16 11:37:58] SERVER_SHUTDOWN: Initiating graceful shutdown
